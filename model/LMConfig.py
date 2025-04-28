@@ -34,23 +34,25 @@ class LMConfig(PretrainedConfig):
             norm_topk_prob: bool = True,
             **kwargs,
     ):
-        self.dim = dim
-        self.n_layers = n_layers
-        self.n_heads = n_heads
-        self.n_kv_heads = n_kv_heads
-        self.vocab_size = vocab_size
-        self.hidden_dim = hidden_dim
-        self.multiple_of = multiple_of
-        self.norm_eps = norm_eps
-        self.max_seq_len = max_seq_len
-        self.rope_theta = rope_theta
-        self.dropout = dropout
-        self.flash_attn = flash_attn
+        # 基础模型参数
+        self.dim = dim  # 模型隐藏层维度，决定模型容量和参数量
+        self.n_layers = n_layers  # Transformer 层数，影响模型深度
+        self.n_heads = n_heads  # 注意力头数，影响并行处理能力
+        self.n_kv_heads = n_kv_heads  # Key-Value 注意力头数，用于分组注意力
+        self.vocab_size = vocab_size  # 词表大小，决定模型可处理的词汇量
+        self.hidden_dim = hidden_dim  # 前馈网络隐藏层维度，默认值为 4 * dim
+        self.multiple_of = multiple_of  # 确保维度是此数的倍数，优化硬件性能
+        self.norm_eps = norm_eps  # LayerNorm 的 epsilon 参数，防止除零
+        self.max_seq_len = max_seq_len  # 最大序列长度，决定模型可处理的文本长度
+        self.rope_theta = rope_theta  # RoPE 旋转位置编码的基础参数
+        self.dropout = dropout  # Dropout 比率，用于防止过拟合
+        self.flash_attn = flash_attn  # 是否使用 Flash Attention 优化
         ####################################################
         # Here are the specific configurations of MOE
         # When use_moe is false, the following is invalid
         ####################################################
-        self.use_moe = use_moe
+        # MOE（混合专家）参数
+        self.use_moe = use_moe  # 是否使用混合专家模型
         self.num_experts_per_tok = num_experts_per_tok  # 每个token选择的专家数量
         self.n_routed_experts = n_routed_experts  # 总的专家数量
         self.n_shared_experts = n_shared_experts  # 共享专家

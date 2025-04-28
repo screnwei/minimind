@@ -4,13 +4,13 @@ from transformers import AutoTokenizer
 import json
 from datasets import load_dataset
 from tokenizers import (
-    decoders,
-    models,
-    normalizers,
-    pre_tokenizers,
-    processors,
-    trainers,
-    Tokenizer,
+    decoders,      # 解码器，用于将 token ID 转换回文本
+    models,        # 分词模型，如 BPE、WordPiece 等
+    normalizers,   # 文本标准化，如小写转换、Unicode 标准化等
+    pre_tokenizers, # 预分词器，如按空格分词
+    processors,    # 后处理，如添加特殊标记
+    trainers,      # 训练器，用于训练分词器
+    Tokenizer,     # 主分词器类
 )
 import os
 
@@ -23,6 +23,7 @@ def train_tokenizer():
         with open(file_path, 'r', encoding='utf-8') as f:
             for line in f:
                 data = json.loads(line)
+                # 使用 yield 关键字定义生成器函数，每次调用只返回一个文本，而不是一次性返回所有文本
                 yield data['text']
 
     data_path = '../dataset/pretrain_hq.jsonl'
@@ -57,10 +58,10 @@ def train_tokenizer():
     assert tokenizer.token_to_id("</s>") == 2
 
     # 保存tokenizer
-    tokenizer_dir = "../model/minimind_tokenizer"
+    tokenizer_dir = "../model/minimind_tokenizer2"
     os.makedirs(tokenizer_dir, exist_ok=True)
     tokenizer.save(os.path.join(tokenizer_dir, "tokenizer.json"))
-    tokenizer.model.save("../model/minimind_tokenizer")
+    tokenizer.model.save(tokenizer_dir)
 
     # 手动创建配置文件
     config = {

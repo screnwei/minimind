@@ -4,6 +4,7 @@ import time
 import numpy as np
 import torch
 import warnings
+import platform
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from model.model import MiniMindLM
 from model.LMConfig import LMConfig
@@ -11,9 +12,16 @@ from model.model_lora import *
 
 warnings.filterwarnings('ignore')
 
+def get_device():
+    if torch.cuda.is_available():
+        return 'cuda'
+    elif platform.processor() == 'arm' and torch.backends.mps.is_available():
+        return 'mps'
+    return 'cpu'
 
 def init_model(args):
     tokenizer = AutoTokenizer.from_pretrained('./model/minimind_tokenizer')
+    # 0: 原生torch权重，1: transformers加载
     if args.load == 0:
         moe_path = '_moe' if args.use_moe else ''
         modes = {0: 'pretrain', 1: 'full_sft', 2: 'rlhf', 3: 'reason', 4: 'grpo'}
@@ -41,6 +49,7 @@ def init_model(args):
 
 
 def get_prompt_datas(args):
+    # 0: 预训练模型，1: SFT-Chat模型，2: RLHF-Chat模型，3: Reason模型，4: RLAIF-Chat模型
     if args.model_mode == 0:
         # pretrain模型的接龙能力（无法对话）
         prompt_datas = [
@@ -107,7 +116,7 @@ def main():
     parser.add_argument('--out_dir', default='out', type=str)
     parser.add_argument('--temperature', default=0.85, type=float)
     parser.add_argument('--top_p', default=0.85, type=float)
-    parser.add_argument('--device', default='cuda' if torch.cuda.is_available() else 'cpu', type=str)
+    parser.add_argument('--device', default=get_device(), type=str)
     # 此处max_seq_len（最大允许输入长度）并不意味模型具有对应的长文本的性能，仅防止QA出现被截断的问题
     # MiniMind2-moe (145M)：(dim=640, n_layers=8, use_moe=True)
     # MiniMind2-Small (26M)：(dim=512, n_layers=8)

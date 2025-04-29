@@ -413,15 +413,25 @@ class MiniMindModel(nn.Module):
 
 
 class MiniMindForCausalLM(PreTrainedModel, GenerationMixin):
-    config_class = MiniMindConfig
+    """
+    MiniMind 因果语言模型类
+    继承自 PreTrainedModel 和 GenerationMixin，用于实现自回归语言模型
+    """
+    config_class = MiniMindConfig  # 配置类
 
     def __init__(self, config: MiniMindConfig = None):
-        self.config = config or MiniMindConfig()
+        """
+        初始化 MiniMind 因果语言模型
+        
+        Args:
+            config: MiniMindConfig 配置对象，如果为 None 则使用默认配置
+        """
+        self.config = config or MiniMindConfig()  # 使用传入的配置或默认配置
         super().__init__(self.config)
-        self.model = MiniMindModel(self.config)
-        self.lm_head = nn.Linear(self.config.hidden_size, self.config.vocab_size, bias=False)
-        self.model.embed_tokens.weight = self.lm_head.weight
-        self.OUT = CausalLMOutputWithPast()
+        self.model = MiniMindModel(self.config)  # 创建 MiniMind 模型
+        self.lm_head = nn.Linear(self.config.hidden_size, self.config.vocab_size, bias=False)  # 语言模型头
+        self.model.embed_tokens.weight = self.lm_head.weight  # 共享词嵌入和语言模型头的权重
+        self.OUT = CausalLMOutputWithPast()  # 输出容器
 
     def forward(self,
                 input_ids: Optional[torch.Tensor] = None,
@@ -430,6 +440,25 @@ class MiniMindForCausalLM(PreTrainedModel, GenerationMixin):
                 use_cache: bool = False,
                 logits_to_keep: Union[int, torch.Tensor] = 0,
                 **args):
+        """
+        前向传播函数
+        
+        Args:
+            input_ids: 输入序列的 token IDs
+            attention_mask: 注意力掩码
+            past_key_values: 缓存的键值对，用于加速生成
+            use_cache: 是否使用缓存
+            logits_to_keep: 要保留的 logits 数量
+            **args: 其他参数
+            
+        Returns:
+            CausalLMOutputWithPast 对象，包含:
+            - last_hidden_state: 最后一层的隐藏状态
+            - logits: 预测的 logits
+            - aux_loss: 辅助损失（如果使用 MOE）
+            - past_key_values: 缓存的键值对
+        """
+        # 获取模型输出
         h, past_kvs, aux_loss = self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
@@ -437,10 +466,15 @@ class MiniMindForCausalLM(PreTrainedModel, GenerationMixin):
             use_cache=use_cache,
             **args
         )
+        
+        # 计算要保留的 logits
         slice_indices = slice(-logits_to_keep, None) if isinstance(logits_to_keep, int) else logits_to_keep
         logits = self.lm_head(h[:, slice_indices, :])
+        
+        # 设置输出
         self.OUT.__setitem__('last_hidden_state', h)
         self.OUT.__setitem__('logits', logits)
         self.OUT.__setitem__('aux_loss', aux_loss)
         self.OUT.__setitem__('past_key_values', past_kvs)
+        
         return self.OUT

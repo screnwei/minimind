@@ -39,20 +39,20 @@ class MiniMindConfig(PretrainedConfig):
             **kwargs
     ):
         super().__init__(**kwargs)
-        self.dropout = dropout
-        self.bos_token_id = bos_token_id
-        self.eos_token_id = eos_token_id
-        self.hidden_act = hidden_act
-        self.hidden_size = hidden_size
-        self.intermediate_size = intermediate_size
-        self.max_position_embeddings = max_position_embeddings
-        self.num_attention_heads = num_attention_heads
-        self.num_hidden_layers = num_hidden_layers
-        self.num_key_value_heads = num_key_value_heads
-        self.vocab_size = vocab_size
-        self.rms_norm_eps = rms_norm_eps
-        self.rope_theta = rope_theta
-        self.flash_attn = flash_attn
+        self.dropout = dropout  # dropout 比率，用于防止过拟合
+        self.bos_token_id = bos_token_id  # 序列开始标记的 token ID
+        self.eos_token_id = eos_token_id  # 序列结束标记的 token ID
+        self.hidden_act = hidden_act  # 隐藏层激活函数类型
+        self.hidden_size = hidden_size  # 隐藏层维度大小
+        self.intermediate_size = intermediate_size  # 中间层维度大小
+        self.max_position_embeddings = max_position_embeddings  # 最大位置编码长度
+        self.num_attention_heads = num_attention_heads  # 注意力头数量
+        self.num_hidden_layers = num_hidden_layers  # 隐藏层数量
+        self.num_key_value_heads = num_key_value_heads  # 键值注意力头数量
+        self.vocab_size = vocab_size  # 词表大小
+        self.rms_norm_eps = rms_norm_eps  # RMS 归一化的 epsilon 值
+        self.rope_theta = rope_theta  # RoPE 旋转位置编码的 theta 参数
+        self.flash_attn = flash_attn  # 是否使用 Flash Attention 优化
         ####################################################
         # Here are the specific configurations of MOE
         # When use_moe is false, the following is invalid

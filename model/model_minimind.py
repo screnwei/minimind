@@ -140,8 +140,10 @@ class Attention(nn.Module):
         self.attn_dropout = nn.Dropout(args.dropout)
         self.resid_dropout = nn.Dropout(args.dropout)
         self.dropout = args.dropout
-        self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention') and args.flash_attn
-        # print("WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0")
+        # 检查是否支持 Flash Attention
+        self.flash = (hasattr(torch.nn.functional, 'scaled_dot_product_attention') 
+                     and args.flash_attn 
+                     and torch.cuda.is_available())
 
     def forward(self,
                 x: torch.Tensor,

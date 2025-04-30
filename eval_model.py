@@ -148,6 +148,15 @@ def main():
         ).to(args.device)
 
         print('🤖️: ', end='')
+        # generate 方法来自 GenerationMixin 类，这是 Hugging Face Transformers 库提供的一个混入类，用于实现文本生成功能。它提供了以下主要功能：
+        # 自回归生成、采样策略（如 top-p、temperature 等）、流式输出支持、注意力掩码处理、特殊 token 处理（如 pad_token、eos_token）
+
+        # 生成过程的主要步骤：
+        # 输入 token 通过词嵌入层转换为向量
+        # 经过多个 Transformer 层处理
+        # 每个时间步生成下一个 token 的概率分布
+        # 根据采样策略（top-p、temperature）选择下一个 token
+        # 重复直到达到最大长度或遇到结束标记
         generated_ids = model.generate(
             inputs["input_ids"],
             max_new_tokens=args.max_seq_len,

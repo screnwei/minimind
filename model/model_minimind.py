@@ -433,6 +433,8 @@ class MiniMindForCausalLM(PreTrainedModel, GenerationMixin):
         self.model = MiniMindModel(self.config)  # 创建 MiniMind 模型
         self.lm_head = nn.Linear(self.config.hidden_size, self.config.vocab_size, bias=False)  # 语言模型头
         self.model.embed_tokens.weight = self.lm_head.weight  # 共享词嵌入和语言模型头的权重
+
+        # CausalLMOutputWithPast 是Hugging Face Transformers库中的一个类，继承自ModelOutput基类，主要用于因果语言模型（Causal Language Model）的输出。
         self.OUT = CausalLMOutputWithPast()  # 输出容器
 
     def forward(self,
@@ -473,10 +475,17 @@ class MiniMindForCausalLM(PreTrainedModel, GenerationMixin):
         slice_indices = slice(-logits_to_keep, None) if isinstance(logits_to_keep, int) else logits_to_keep
         logits = self.lm_head(h[:, slice_indices, :])
         
-        # 设置输出
+
+        # last_hidden_state 模型最后一层的隐藏状态，形状通常是(batch_size, sequence_length, hidden_size)
+        # 包含了输入序列经过所有Transformer层处理后的最终表示，可以用于下游任务或进一步的特征提取
         self.OUT.__setitem__('last_hidden_state', h)
+        # logits 模型输出的未归一化的概率分布，形状为(batch_size, sequence_length, vocab_size)
+        # 表示每个位置对词汇表中每个词的概率预测，通过softmax可以转换为概率分布，用于预测下一个token
         self.OUT.__setitem__('logits', logits)
+        # aux_loss: 辅助损失值，通常用于多任务学习或特殊训练目标，在MoE（Mixture of Experts）模型中可能表示专家路由的损失，帮助模型在主要任务之外优化其他目标   
         self.OUT.__setitem__('aux_loss', aux_loss)
+        # past_key_values: 存储了注意力机制中的key和value状态
+        # 用于自回归生成时的缓存机制，可以避免在生成每个新token时重新计算整个序列的注意力，显著提高生成效率 
         self.OUT.__setitem__('past_key_values', past_kvs)
         
         return self.OUT

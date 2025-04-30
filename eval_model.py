@@ -127,7 +127,7 @@ def main():
     streamer = TextStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
 
     messages = []
-    for idx, prompt in enumerate(prompts if test_mode == 0 else iter(lambda: input('👶: '), '')):
+    for idx, prompt in enumerate(prompts if test_mode == 0 else iter(lambda: input('👶:'), '')):
         setup_seed(random.randint(0, 2048))
         # setup_seed(2025)  # 如需固定每次输出则换成【固定】的随机种子
         if test_mode == 0: print(f'👶: {prompt}')
@@ -165,6 +165,11 @@ def main():
             attention_mask=inputs["attention_mask"],
             pad_token_id=tokenizer.pad_token_id,
             eos_token_id=tokenizer.eos_token_id,
+            # TextStreamer是Hugging Face Transformers库提供的一个类，它会在模型生成每个token时实时将其转换为可读文本。具体工作流程是：
+            # 模型生成一个token ID
+            # TextStreamer立即将这个token ID通过tokenizer转换为对应的文本
+            # 将转换后的文本实时输出到控制台
+            # 这种方式实现了流式输出，即模型每生成一个token就立即显示，而不是等待整个序列生成完成。
             streamer=streamer,
             top_p=args.top_p,
             temperature=args.temperature

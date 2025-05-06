@@ -141,6 +141,9 @@ def main():
             add_generation_prompt=True
         ) if args.model_mode != 0 else (tokenizer.bos_token + prompt)
 
+        # Hugging Face Transformers 库中的分词器（tokenizer）对象。它的作用是把自然语言文本（如 new_prompt）转化为模型输入所需的 token id（数字序列），并生成相应的 attention mask 等信息。
+        # eg： 输入： <|im_start|>马克思主义基本原理
+        #   输出：{'input_ids': tensor([[   1, 3169, 1951, 1794, 5819, 2885, 5392]]), 'token_type_ids': tensor([[0, 0, 0, 0, 0, 0, 0]]), 'attention_mask': tensor([[1, 1, 1, 1, 1, 1, 1]])}
         inputs = tokenizer(
             new_prompt,
             return_tensors="pt",

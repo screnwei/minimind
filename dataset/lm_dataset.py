@@ -13,14 +13,26 @@ import ast
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
+# 预训练数据集类，用于加载和处理预训练任务的数据
 class PretrainDataset(Dataset):
     def __init__(self, data_path, tokenizer, max_length=512):
+        """
+        初始化预训练数据集。
+        参数：
+            data_path: 数据文件路径，文件为jsonl格式，每行一个json对象，需包含'text'字段。
+            tokenizer: 分词器，用于将文本转为token id。
+            max_length: 最大序列长度，超出部分会被截断，不足会填充。
+        """
         super().__init__()
         self.tokenizer = tokenizer
         self.max_length = max_length
-        self.samples = self.load_data(data_path)
+        self.samples = self.load_data(data_path)  # 加载所有样本
 
     def load_data(self, path):
+        """
+        从指定路径加载数据，每行为一个json对象。
+        返回：样本列表，每个元素为一个dict。
+        """
         samples = []
         with open(path, 'r', encoding='utf-8') as f:
             for line_num, line in enumerate(f, 1):
@@ -29,12 +41,22 @@ class PretrainDataset(Dataset):
         return samples
 
     def __len__(self):
+        """
+        返回数据集的样本数量。
+        """
         return len(self.samples)
 
     def __getitem__(self, index):
+        """
+        获取指定索引的样本，返回模型训练所需的输入、标签和损失掩码。
+        返回：
+            X: 输入token id序列（去掉最后一个token）
+            Y: 标签token id序列（去掉第一个token，和X错位一位）
+            loss_mask: 损失掩码，pad部分为0，其余为1
+        """
         sample = self.samples[index]
 
-        # 构建输入文本
+        # 对文本进行分词和编码，返回pytorch tensor
         encoding = self.tokenizer(
             str(sample['text']),
             max_length=self.max_length,
@@ -42,12 +64,13 @@ class PretrainDataset(Dataset):
             truncation=True,
             return_tensors='pt'
         )
-        input_ids = encoding.input_ids.squeeze()
-        loss_mask = (input_ids != self.tokenizer.pad_token_id)
+        input_ids = encoding.input_ids.squeeze()  # 1D tensor
+        loss_mask = (input_ids != self.tokenizer.pad_token_id)  # pad部分为0，其余为1
 
+        # 构造输入和标签，分别为input_ids的[:-1]和[1:]
         X = torch.tensor(input_ids[:-1], dtype=torch.long)
         Y = torch.tensor(input_ids[1:], dtype=torch.long)
-        loss_mask = torch.tensor(loss_mask[1:], dtype=torch.long)
+        loss_mask = torch.tensor(loss_mask[1:], dtype=torch.long)  # 对齐标签
         return X, Y, loss_mask
 
 

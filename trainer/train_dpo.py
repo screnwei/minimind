@@ -61,37 +61,51 @@ def dpo_loss(ref_probs, probs, mask, beta):
 
 
 def train_epoch(epoch, wandb):
+    # 记录当前epoch的起始时间
     start_time = time.time()
+    # 遍历训练集的每一个batch
     for step, batch in enumerate(train_loader):
+        # 将正样本和负样本的输入、标签、mask移动到指定设备
         x_chosen = batch['x_chosen'].to(args.device)
         x_rejected = batch['x_rejected'].to(args.device)
         y_chosen = batch['y_chosen'].to(args.device)
         y_rejected = batch['y_rejected'].to(args.device)
         mask_chosen = batch['mask_chosen'].to(args.device)
         mask_rejected = batch['mask_rejected'].to(args.device)
+        # 拼接正负样本，方便后续同时计算
         x = torch.cat([x_chosen, x_rejected], dim=0)
         y = torch.cat([y_chosen, y_rejected], dim=0)
         mask = torch.cat([mask_chosen, mask_rejected], dim=0)
 
+        # 动态调整学习率
         lr = get_lr(epoch * iter_per_epoch + step, args.epochs * iter_per_epoch, args.learning_rate)
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 
+        # 自动混合精度上下文
         with ctx:
+            # 计算参考模型的输出（不计算梯度）
             with torch.no_grad():
                 ref_outputs = ref_model(x)
                 ref_logits = ref_outputs.logits
+            # 计算参考模型的概率
             ref_probs = logits_to_probs(ref_logits, y)
             ref_probs = ref_probs * mask
+            # 计算主模型的输出
             outputs = model(x)
             logits = outputs.logits
+            # 计算主模型的概率
             probs = logits_to_probs(logits, y)
             probs = probs * mask
+            # 计算DPO损失
             loss = dpo_loss(ref_probs, probs, mask, beta=0.1)
+            # 梯度累积，loss缩放
             loss = loss / args.accumulation_steps
 
+        # 反向传播（使用混合精度）
         scaler.scale(loss).backward()
 
+        # 每accumulation_steps步更新一次参数
         if (step + 1) % args.accumulation_steps == 0:
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
@@ -99,6 +113,7 @@ def train_epoch(epoch, wandb):
             scaler.update()
             optimizer.zero_grad(set_to_none=True)
 
+        # 日志打印与wandb记录
         if step % args.log_interval == 0:
             spend_time = time.time() - start_time
             Logger(
@@ -116,6 +131,7 @@ def train_epoch(epoch, wandb):
                            "lr": optimizer.param_groups[-1]['lr'],
                            "epoch_Time": spend_time / (step + 1) * iter_per_epoch // 60 - spend_time // 60})
 
+        # 按间隔保存模型权重
         if (step + 1) % args.save_interval == 0 and (not ddp or dist.get_rank() == 0):
             model.eval()
             moe_path = '_moe' if lm_config.use_moe else ''
@@ -125,28 +141,40 @@ def train_epoch(epoch, wandb):
                 state_dict = model.module.state_dict()
             else:
                 state_dict = model.state_dict()
-            state_dict = {k: v.half() for k, v in state_dict.items()}  # 半精度保存
+            # 半精度保存权重，节省空间
+            state_dict = {k: v.half() for k, v in state_dict.items()}
             torch.save(state_dict, ckp)
             model.train()
 
 
 def init_model(lm_config):
+    # 加载分词器，假设'../model/'目录下有分词器相关文件
     tokenizer = AutoTokenizer.from_pretrained('../model/')
+    # 初始化主模型
     model = MiniMindForCausalLM(lm_config)
+    # 根据是否使用MoE（混合专家）确定权重文件名
     moe_path = '_moe' if lm_config.use_moe else ''
     ckp = f'{args.save_dir}/full_sft_{lm_config.hidden_size}{moe_path}.pth'
+    # 加载预训练权重（半精度）
     state_dict = torch.load(ckp, map_location=args.device)
+    # 将权重加载到主模型中，strict=False允许部分参数不匹配
     model.load_state_dict(state_dict, strict=False)
-    # 初始化参考模型
+    # 初始化参考模型（ref_model），结构与主模型一致
     ref_model = MiniMindForCausalLM(lm_config)
+    # 参考模型加载同样的权重
     ref_model.load_state_dict(state_dict, strict=False)
+    # 参考模型设为评估模式，不参与训练
     ref_model.eval()
+    # 参考模型不参与梯度计算，节省显存
     ref_model.requires_grad_(False)
 
+    # 打印主模型可训练参数量（单位：百万）
     Logger(f'LLM总参数量：{sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6:.3f} 百万')
+    # 将主模型和参考模型移动到指定设备（如GPU或CPU）
     model = model.to(args.device)
     ref_model = ref_model.to(args.device)
 
+    # 返回主模型、参考模型和分词器
     return model, ref_model, tokenizer
 
 
@@ -161,7 +189,7 @@ def init_distributed_mode():
     DEVICE = f"cuda:{ddp_local_rank}"
     torch.cuda.set_device(DEVICE)
 
-
+# 人类反馈强化学习——直接偏好优化 DPO
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MiniMind RLHF")
     parser.add_argument("--out_dir", type=str, default="../out")

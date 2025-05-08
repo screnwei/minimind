@@ -31,37 +31,47 @@ def get_lr(current_step, total_steps, lr):
 
 
 def train_epoch(epoch, wandb):
+    # 定义损失函数，这里使用交叉熵损失，且不做reduction，方便后续加权
     loss_fct = nn.CrossEntropyLoss(reduction='none')
-    start_time = time.time()
+    start_time = time.time() # 记录本轮开始时间
+
+    # 遍历训练集的每个batch
     for step, (X, Y, loss_mask) in enumerate(train_loader):
-        X = X.to(args.device)
-        Y = Y.to(args.device)
-        loss_mask = loss_mask.to(args.device)
+        X = X.to(args.device) # 输入数据转到指定设备
+        Y = Y.to(args.device) # 标签转到指定设备
+        loss_mask = loss_mask.to(args.device) # 损失掩码转到指定设备
+
+        # 计算当前步的学习率（余弦退火）
         lr = get_lr(epoch * iter_per_epoch + step, args.epochs * iter_per_epoch, args.learning_rate)
         for param_group in optimizer.param_groups:
-            param_group['lr'] = lr
+            param_group['lr'] = lr # 更新优化器的学习率
 
         with ctx:
-            res = model(X)
+            res = model(X) # 前向传播
+            # 计算逐token损失
             loss = loss_fct(
                 res.logits.view(-1, res.logits.size(-1)),
                 Y.view(-1)
             ).view(Y.size())
-
+            # 只对有效token计算损失
             loss = (loss * loss_mask).sum() / loss_mask.sum()
+            # 加入辅助损失
             loss += res.aux_loss
+            # 梯度累积，损失缩放
             loss = loss / args.accumulation_steps
 
+        # 反向传播（自动混合精度缩放）
         scaler.scale(loss).backward()
 
+        # 梯度累积步数达到设定值时，进行参数更新
         if (step + 1) % args.accumulation_steps == 0:
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+            scaler.unscale_(optimizer) # 反缩放
+            torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip) # 梯度裁剪
 
-            scaler.step(optimizer)
-            scaler.update()
+            scaler.step(optimizer) # 优化器更新
+            scaler.update()        # 更新scaler
 
-            optimizer.zero_grad(set_to_none=True)
+            optimizer.zero_grad(set_to_none=True) # 梯度清零
 
         if step % args.log_interval == 0:
             spend_time = time.time() - start_time
@@ -80,6 +90,7 @@ def train_epoch(epoch, wandb):
                            "lr": optimizer.param_groups[-1]['lr'],
                            "epoch_Time": spend_time / (step + 1) * iter_per_epoch // 60 - spend_time // 60})
 
+        # 模型定期保存
         if (step + 1) % args.save_interval == 0 and (not ddp or dist.get_rank() == 0):
             model.eval()
             moe_path = '_moe' if lm_config.use_moe else ''
@@ -94,15 +105,24 @@ def train_epoch(epoch, wandb):
 
 
 def init_model(lm_config):
+    # 加载分词器，这里假设'../model'目录下有预训练的分词器文件
     tokenizer = AutoTokenizer.from_pretrained('../model')
+    # 根据传入的配置初始化MiniMind模型
     model = MiniMindForCausalLM(lm_config)
+    # 判断是否使用门控专家混合（MoE）结构，决定权重文件名
     moe_path = '_moe' if lm_config.use_moe else ''
+    # 构建预训练模型权重的路径
     ckp = f'{args.save_dir}/pretrain_{lm_config.hidden_size}{moe_path}.pth'
+    # 加载预训练模型权重到当前设备
     state_dict = torch.load(ckp, map_location=args.device)
+    # 将权重加载到模型中，strict=False允许部分权重不匹配
     model.load_state_dict(state_dict, strict=False)
 
+    # 打印可训练参数量（单位：百万），仅主进程输出
     Logger(f'LLM可训练总参数量：{sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6:.3f} 百万')
+    # 将模型移动到指定设备
     model = model.to(args.device)
+    # 返回模型和分词器
     return model, tokenizer
 
 
@@ -117,7 +137,7 @@ def init_distributed_mode():
     DEVICE = f"cuda:{ddp_local_rank}"
     torch.cuda.set_device(DEVICE)
 
-
+# 有监督微调代码
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MiniMind Full SFT")
     parser.add_argument("--out_dir", type=str, default="../out")

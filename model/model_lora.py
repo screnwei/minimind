@@ -18,7 +18,7 @@ class LoRA(nn.Module):
         return self.B(self.A(x))
 
 
-def apply_lora(model, rank=8):
+def apply_lora(model, rank=16):
     for name, module in model.named_modules():
         if isinstance(module, nn.Linear) and module.weight.shape[0] == module.weight.shape[1]:
             lora = LoRA(module.weight.shape[0], module.weight.shape[1], rank=rank).to(model.device)
@@ -34,6 +34,8 @@ def apply_lora(model, rank=8):
 
 def load_lora(model, path):
     state_dict = torch.load(path, map_location=model.device)
+    state_dict = {(k[7:] if k.startswith('module.') else k): v for k, v in state_dict.items()}
+
     for name, module in model.named_modules():
         if hasattr(module, 'lora'):
             lora_state = {k.replace(f'{name}.lora.', ''): v for k, v in state_dict.items() if f'{name}.lora.' in k}
@@ -41,9 +43,23 @@ def load_lora(model, path):
 
 
 def save_lora(model, path):
+    raw_model = getattr(model, '_orig_mod', model)
     state_dict = {}
-    for name, module in model.named_modules():
+    for name, module in raw_model.named_modules():
         if hasattr(module, 'lora'):
-            lora_state = {f'{name}.lora.{k}': v for k, v in module.lora.state_dict().items()}
+            clean_name = name[7:] if name.startswith("module.") else name
+            lora_state = {f'{clean_name}.lora.{k}': v.cpu().half() for k, v in module.lora.state_dict().items()}
             state_dict.update(lora_state)
     torch.save(state_dict, path)
+
+
+def merge_lora(model, lora_path, save_path):
+    load_lora(model, lora_path)
+    raw_model = getattr(model, '_orig_mod', model)
+    state_dict = {k: v.cpu().half() for k, v in raw_model.state_dict().items() if '.lora.' not in k}
+    for name, module in raw_model.named_modules():
+        if isinstance(module, nn.Linear) and '.lora.' not in name:
+            state_dict[f'{name}.weight'] = module.weight.data.clone().cpu().half()
+            if hasattr(module, 'lora'):
+                state_dict[f'{name}.weight'] += (module.lora.B.weight.data @ module.lora.A.weight.data).cpu().half()
+    torch.save(state_dict, save_path)

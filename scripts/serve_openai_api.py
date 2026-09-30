@@ -15,7 +15,7 @@ from threading import Thread
 from queue import Queue
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from transformers import AutoTokenizer, AutoModelForCausalLM, TextStreamer
 from model.model_minimind import MiniMindConfig, MiniMindForCausalLM
 from model.model_lora import apply_lora, load_lora
@@ -40,7 +40,7 @@ def init_model(args):
         model.load_state_dict(torch.load(ckp, map_location=device), strict=True)
         if args.lora_weight != 'None':
             apply_lora(model)
-            load_lora(model, f'../{args.save_dir}/lora/{args.lora_weight}_{args.hidden_size}.pth')
+            load_lora(model, f'../{args.save_dir}/{args.lora_weight}_{args.hidden_size}{moe_suffix}.pth')
     else:
         model = AutoModelForCausalLM.from_pretrained(args.load_from, trust_remote_code=True)
     print(f'MiniMind模型参数量: {sum(p.numel() for p in model.parameters()) / 1e6:.2f} M(illion)')
@@ -54,7 +54,7 @@ class ChatRequest(BaseModel):
     top_p: float = 0.92
     max_tokens: int = 8192
     stream: bool = True
-    tools: list = []
+    tools: list = Field(default_factory=list)
     open_thinking: bool = False
     chat_template_kwargs: dict = None
     
@@ -104,24 +104,28 @@ def parse_response(text):
 
 def generate_stream_response(messages, temperature, top_p, max_tokens, tools=None, open_thinking=False):
     try:
-        new_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True, tools=tools or None, open_thinking=open_thinking)[-max_tokens:]
+        new_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True, tools=tools or None, open_thinking=open_thinking)
         inputs = tokenizer(new_prompt, return_tensors="pt", truncation=True).to(device)
 
         queue = Queue()
         streamer = CustomStreamer(tokenizer, queue)
 
         def _generate():
-            model.generate(
-                inputs.input_ids,
-                max_new_tokens=max_tokens,
-                do_sample=True,
-                temperature=temperature,
-                top_p=top_p,
-                attention_mask=inputs.attention_mask,
-                pad_token_id=tokenizer.pad_token_id,
-                eos_token_id=tokenizer.eos_token_id,
-                streamer=streamer
-            )
+            try:
+                model.generate(
+                    inputs.input_ids,
+                    max_new_tokens=max_tokens,
+                    do_sample=True,
+                    temperature=temperature,
+                    top_p=top_p,
+                    attention_mask=inputs.attention_mask,
+                    pad_token_id=tokenizer.pad_token_id,
+                    eos_token_id=tokenizer.eos_token_id,
+                    streamer=streamer
+                )
+            except Exception as e:
+                queue.put({"error": str(e)})
+                queue.put(None)
 
         Thread(target=_generate).start()
 
@@ -133,6 +137,9 @@ def generate_stream_response(messages, temperature, top_p, max_tokens, tools=Non
             text = queue.get()
             if text is None:
                 break
+            if isinstance(text, dict):
+                yield json.dumps(text, ensure_ascii=False)
+                continue
             full_text += text
 
             if not thinking_ended:
@@ -190,12 +197,12 @@ async def chat_completions(request: ChatRequest):
                 add_generation_prompt=True,
                 tools=request.tools or None,
                 open_thinking=request.get_open_thinking()
-            )[-request.max_tokens:]
+            )
             inputs = tokenizer(new_prompt, return_tensors="pt", truncation=True).to(device)
             with torch.no_grad():
                 generated_ids = model.generate(
                     inputs["input_ids"],
-                    max_length=inputs["input_ids"].shape[1] + request.max_tokens,
+                    max_new_tokens=request.max_tokens,
                     do_sample=True,
                     attention_mask=inputs["attention_mask"],
                     pad_token_id=tokenizer.pad_token_id,

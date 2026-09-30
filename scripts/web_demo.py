@@ -2,12 +2,16 @@ import random
 import re
 import json
 import os
+import sys
 from threading import Thread
 
 import torch
 import numpy as np
 import streamlit as st
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from trainer.trainer_utils import safe_math_eval
 
 st.set_page_config(page_title="MiniMind", initial_sidebar_state="collapsed")
 
@@ -125,7 +129,7 @@ def execute_tool(tool_name, args):
     import datetime
     try:
         if tool_name == 'calculate_math':
-            return {"result": eval(args.get('expression', '0'))}
+            return {"result": safe_math_eval(args.get('expression', '0'))}
         elif tool_name == 'get_current_time':
             tz = args.get('timezone', 'Asia/Shanghai')
             return {"result": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
@@ -339,8 +343,8 @@ def main():
         st.markdown(
             f'<div style="display: flex; justify-content: flex-end;"><div style="display: inline-block; margin: 10px 0; padding: 8px 12px 8px 12px; background-color: #3d4450; border-radius: 22px; color: white;">{prompt}</div></div>',
             unsafe_allow_html=True)
-        messages.append({"role": "user", "content": prompt[-st.session_state.max_new_tokens:]})
-        st.session_state.chat_messages.append({"role": "user", "content": prompt[-st.session_state.max_new_tokens:]})
+        messages.append({"role": "user", "content": prompt})
+        st.session_state.chat_messages.append({"role": "user", "content": prompt})
 
         placeholder = st.empty()
 

@@ -25,7 +25,12 @@ def init_model(args):
             apply_lora(model)
             load_lora(model, f'./{args.save_dir}/{args.lora_weight}_{args.hidden_size}{moe_suffix}.pth')
     else:
-        model = AutoModelForCausalLM.from_pretrained(args.load_from, trust_remote_code=True)
+        attn_implementation = 'eager' if args.device == 'mps' else None
+        model = AutoModelForCausalLM.from_pretrained(
+            args.load_from,
+            attn_implementation=attn_implementation,
+            trust_remote_code=True
+        )
     get_model_params(model, model.config)
     return model.half().eval().to(args.device), tokenizer
 

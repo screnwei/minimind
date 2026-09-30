@@ -4,3 +4,8 @@ __pycache__/
 out
 website/
 docs-minimind/
+.idea/
+MiniMind2/
+minimind-3/
+dataset/*.jsonl
+notebook/model/toy_tokenizer/

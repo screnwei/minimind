@@ -16,11 +16,12 @@
      * 原生智能体强化学习脚本 `train_agent.py` 与解耦的 `rollout_engine.py` 架构初窥。
 4. [ ] 假期结课总结与个人 LLM 知识树梳理。
 
-## 🔍 涉及文件
+## 🔍 涉及文件与专题资料
 * [trainer/train_dpo.py](file:///Users/kevin/Code/github/AI/minimind/trainer/train_dpo.py)（DPO 原生手写实现）
 * [scripts/eval_toolcall.py](file:///Users/kevin/Code/github/AI/minimind/scripts/eval_toolcall.py)（工具调用评测与执行闭环）
 * [trainer/train_agent.py](file:///Users/kevin/Code/github/AI/minimind/trainer/train_agent.py)（原生智能体强化学习）
 * [trainer/rollout_engine.py](file:///Users/kevin/Code/github/AI/minimind/trainer/rollout_engine.py)（采样引擎）
+* 📖 **深度专题精读**：[deep_dive_web_search_and_agent.md](file:///Users/kevin/Code/github/AI/minimind/notes/07_dpo_and_agent/deep_dive_web_search_and_agent.md)（大模型 API 自带“联网搜索”是如何实现的？从原理、架构时序到 MiniMind 代码实战）
 
 ## 🧪 今日实验指引
 * `exp1_dpo_loss_walkthrough.py`：单步模拟 DPO 损失计算，输入一个好回答与坏回答，观察随着模型给好回答赋予更高概率时，Loss 如何下降。

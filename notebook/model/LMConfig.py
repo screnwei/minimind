@@ -18,7 +18,7 @@ class LMConfig(MiniMindConfig):
     """
     def __init__(
         self,
-        hidden_size: int = 768,
+        hidden_size: int = 512,  # 笔记本教学设置 512 维，轻量快速
         num_hidden_layers: int = 1,  # 设为 1 层便于本地单机调试
         num_attention_heads: int = 8,
         num_key_value_heads: int = 4, # MiniMind-3 GQA 升级为 4 个 KV 头
@@ -57,3 +57,18 @@ class LMConfig(MiniMindConfig):
         self.n_layers = self.num_hidden_layers
         self.n_heads = self.num_attention_heads
         self.n_kv_heads = self.num_key_value_heads
+        self.max_seq_len = self.max_position_embeddings
+        self.hidden_dim = self.intermediate_size
+        self.multiple_of = 64
+        self.dropout = 0.0
+        self.flash_attn = False
+        self.norm_eps = getattr(self, 'rms_norm_eps', 1e-6)
+        self.num_experts_per_tok = getattr(self, 'num_experts_per_tok', 1)
+        self.n_routed_experts = getattr(self, 'n_routed_experts', 4)
+        self.n_shared_experts = False
+        self.aux_loss_alpha = 0.1
+        self.seq_aux = True
+        self.norm_topk_prob = True
+        self.scoring_func = 'softmax'
+
+

@@ -25,3 +25,13 @@
 * `exp1_attention_matrix_walkthrough.py`：纯手写一个小型 Attention 计算，打印出权重热力图与掩码效果。
 * `exp2_gqa_dimension_trace.py`：追踪 `q_heads=8` 与 `kv_heads=4` 在 `repeat_kv` 后的张量维度变化。
 * `exp3_kv_cache_speedup.py`：模拟自回归生成，对比开启与不开启 KV Cache 时的推理延迟差异。
+
+---
+
+## 📖 核心深度专题推荐
+* 🌟 **[KV Cache 核心机制、高并发多用户存储与工程避坑指南](./deep_dive_kv_cache.md)**：
+  - 问答 1：KV Cache 到底保存在哪？多用户并发时显存开销公式推导；
+  - 问答 2：长程任务与 Agent 多轮调用中，KV Cache 什么时候销毁？（无状态 vs 长连接 vs Prompt Caching）；
+  - 问答 3：为什么源码中的裸 `torch.cat` 只能单机玩？vLLM 的 PagedAttention 是如何破解的；
+  - 问答 4：KV Cache 是不是只有推理用？训练时为什么坚决不用？
+
